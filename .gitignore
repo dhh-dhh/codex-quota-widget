@@ -1,0 +1,9 @@
+quota.json
+quota.json.tmp
+position.json
+preview.png
+*.log
+.env
+.env.*
+auth.json
+node_modules/
