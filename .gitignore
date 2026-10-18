@@ -7,3 +7,5 @@ preview.png
 .env.*
 auth.json
 node_modules/
+
+providers.local.json

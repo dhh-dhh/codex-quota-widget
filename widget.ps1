@@ -2,8 +2,8 @@
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
 $base=$PSScriptRoot
-$mutex=New-Object Threading.Mutex($false,'Local\CodexQuotaWidgetV1')
-if(-not $mutex.WaitOne(0)){exit}
+$mutex=New-Object Threading.Mutex($false,('Local\CodexQuotaWidgetV1'+$(if($SmokeTest){'-test'})))
+try{if(-not $mutex.WaitOne(0)){exit}}catch [Threading.AbandonedMutexException]{}
 $node=$env:CODEX_WIDGET_NODE
 if(-not $node){$node=(Get-Command node.exe -ErrorAction SilentlyContinue).Source}
 if(-not $node){$node=Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'}
@@ -17,10 +17,10 @@ if(-not (Test-Path $node)){[System.Windows.MessageBox]::Show('找不到 Node.js�
 <Border Background="#F51A1E26" BorderBrush="#414958" BorderThickness="1" CornerRadius="16" Padding="20,16">
 <StackPanel>
 <Grid x:Name="DragArea" Background="Transparent" Cursor="SizeAll" Margin="0,0,0,16"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-<StackPanel><TextBlock Text="CODEX" Foreground="#94E2BC" FontWeight="Bold" FontSize="13"/><TextBlock Text="账户剩余额度" Foreground="#E9EDF5" FontSize="17" Margin="0,5,0,0"/></StackPanel>
+<StackPanel><TextBlock Text="AI QUOTA" Foreground="#94E2BC" FontWeight="Bold" FontSize="13"/><TextBlock Text="账户剩余额度" Foreground="#E9EDF5" FontSize="17" Margin="0,5,0,0"/></StackPanel>
 <Button x:Name="CloseBtn" Grid.Column="1" Content="×" Width="26" Height="26" VerticalAlignment="Top" Background="Transparent" Foreground="#A6AFBF" BorderThickness="0" FontSize="20" ToolTip="关闭小组件"/>
 </Grid>
-<StackPanel x:Name="Rows"><TextBlock Text="正在读取额度…" Foreground="White" FontSize="22" Margin="0,6,0,18"/></StackPanel>
+<ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="Rows"><TextBlock Text="正在读取额度…" Foreground="White" FontSize="22" Margin="0,6,0,18"/></StackPanel></ScrollViewer>
 <TextBlock x:Name="Status" Foreground="#8E9AAA" Text="每 60 秒自动刷新" FontSize="11" TextWrapping="Wrap" Margin="0,12,0,12"/>
 <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
 <CheckBox x:Name="Pin" Content="置顶" IsChecked="True" Foreground="#ADB7C6" VerticalAlignment="Center" FontSize="11"/>
@@ -39,7 +39,7 @@ $window.FindName('Auto').Add_Click({
    $shell=New-Object -ComObject WScript.Shell;$link=$shell.CreateShortcut($startup)
    $link.TargetPath="$env:WINDIR\System32\wscript.exe";$link.Arguments='"'+$base+'\启动额度小组件.vbs"';$link.WorkingDirectory=$base;$link.Save()
   }else{if(Test-Path $startup){Remove-Item -LiteralPath $startup}}
- }catch{$status.Text='无法更改开机启动设置'}
+ }catch{$this.IsChecked=Test-Path $startup;$status.Text='无法更改开机启动设置'}
 })
 $window.FindName('Pin').Add_Click({$window.Topmost=[bool]$this.IsChecked})
 $window.FindName('CloseBtn').Add_Click({$window.Close()})
@@ -64,16 +64,17 @@ function Render-Quota($data){
   $label=switch($r.minutes){10080{'每周额度'} 300{'5 小时额度'} 1440{'每日额度'} default{if($null -eq $r.minutes){'额度'}else{"$($r.minutes) 分钟额度"}}}
   if($r.name -ne 'codex'){$label="$($r.name) · $label"}
   $t=New-Object Windows.Controls.TextBlock;$t.Text=$label;$t.Foreground='#AEBACA';$t.FontSize=12;$t.Margin='0,8,0,0';[void]$rows.Children.Add($t)
-  $t=New-Object Windows.Controls.TextBlock;$t.Text=if($null -eq $r.remaining){'暂无数据'}else{"$($r.remaining)%"};$t.Foreground='#F5F8FD';$t.FontSize=46;$t.FontWeight='SemiBold';[void]$rows.Children.Add($t)
-  $bar=New-Object Windows.Controls.ProgressBar;$bar.Height=6;$bar.Maximum=100;$bar.Value=if($null -eq $r.remaining){0}else{$r.remaining};$bar.Background='#333D4B';$bar.Foreground=if($r.remaining -lt 20){'#F5B775'}else{'#89DEB3'};$bar.BorderThickness=0;[void]$rows.Children.Add($bar)
-  $t=New-Object Windows.Controls.TextBlock;$t.Foreground='#93A0B3';$t.FontSize=11;$t.Margin='0,10,0,4';$t.Text=if($r.resetsAt){'重置于 '+[DateTimeOffset]::FromUnixTimeSeconds($r.resetsAt).ToLocalTime().ToString('MM月dd日 HH:mm')}else{'重置时间暂无数据'};[void]$rows.Children.Add($t)
+  $t=New-Object Windows.Controls.TextBlock;$t.Text=if($r.displayValue){$r.displayValue}elseif($null -eq $r.remaining){'暂无数据'}else{"$($r.remaining)%"};$t.Foreground='#F5F8FD';$t.FontSize=46;$t.FontWeight='SemiBold';[void]$rows.Children.Add($t)
+  $bar=New-Object Windows.Controls.ProgressBar;$bar.Height=6;$bar.Maximum=100;$bar.Value=if($null -eq $r.remaining){0}else{$r.remaining};$bar.Background='#333D4B';$bar.Foreground=if($r.remaining -lt 20){'#F5B775'}else{'#89DEB3'};$bar.BorderThickness=0;if($null -ne $r.remaining){[void]$rows.Children.Add($bar)}
+  $t=New-Object Windows.Controls.TextBlock;$t.Foreground='#93A0B3';$t.FontSize=11;$t.TextWrapping='Wrap';$t.Margin='0,10,0,4';$t.Text=if($r.detail){$r.detail}elseif($r.resetsAt){'重置于 '+[DateTimeOffset]::FromUnixTimeSeconds($r.resetsAt).ToLocalTime().ToString('MM月dd日 HH:mm')}else{'重置时间暂无数据'};[void]$rows.Children.Add($t)
  }
  if(@($data.rows).Count -eq 0){$t=New-Object Windows.Controls.TextBlock;$t.Text='当前账号暂无额度数据';$t.Foreground='White';[void]$rows.Children.Add($t)}
- $script:lastSuccess=[datetime]::Now;$script:passed=$true;$status.Foreground='#8E9AAA';$status.Text='更新于 '+$script:lastSuccess.ToString('HH:mm:ss')+' · 每分钟刷新'
+ $script:lastSuccess=[datetime]::Now;$script:passed=$true;$status.Foreground='#8E9AAA';$status.Text='更新于 '+$script:lastSuccess.ToString('HH:mm:ss')+' · 每分钟刷新';if($data.errors.Count -gt 0){$status.Foreground='#FFBA80';$status.Text+=' · '+($data.errors -join '；')}
 }
 $refresh.Add_Click({Begin-Refresh})
 $timer=New-Object Windows.Threading.DispatcherTimer;$timer.Interval=[TimeSpan]::FromMilliseconds(500)
 $timer.Add_Tick({
+ if($SmokeTest -and [datetime]::Now -gt $smokeDeadline){$window.Close();return}
  try{
   if($script:worker -and $script:worker.HasExited){
    if($script:worker.ExitCode -eq 0){Render-Quota (Get-Content -Raw -Encoding UTF8 "$base\quota.json" | ConvertFrom-Json)}else{$status.Text='读取失败，将在一分钟内重试';$status.Foreground='#FFBA80'}
@@ -84,8 +85,9 @@ $timer.Add_Tick({
    $window.UpdateLayout();$bitmap=New-Object Windows.Media.Imaging.RenderTargetBitmap([int]$window.ActualWidth,[int]$window.ActualHeight,96,96,[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($window)
    $encoder=New-Object Windows.Media.Imaging.PngBitmapEncoder;$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));$file=[IO.File]::Create("$base\preview.png");$encoder.Save($file);$file.Close();$window.Close()
   }
- }catch{$status.Text='刷新异常，将自动重试';$status.Foreground='#FFBA80';$refresh.IsEnabled=$true;if($script:worker){if(-not $script:worker.HasExited){$script:worker.Kill()};$script:worker.Dispose();$script:worker=$null};$script:next=[datetime]::Now.AddSeconds(60);$_ | Out-String | Set-Content "$base\widget-error.log"}
+ }catch{$status.Text='刷新异常，将自动重试';$status.Foreground='#FFBA80';$refresh.IsEnabled=$true;if($script:worker){if(-not $script:worker.HasExited){& taskkill.exe /PID $script:worker.Id /T /F 2>$null | Out-Null};$script:worker.Dispose();$script:worker=$null};$script:next=[datetime]::Now.AddSeconds(60);$_ | Out-String | Set-Content "$base\widget-error.log"}
 })
 $window.Add_Closed({$timer.Stop();if($script:worker -and -not $script:worker.HasExited){ & taskkill.exe /PID $script:worker.Id /T /F 2>$null | Out-Null };@{left=$window.Left;top=$window.Top}|ConvertTo-Json|Set-Content "$base\position.json"})
+$smokeDeadline=[datetime]::Now.AddSeconds(40)
 $timer.Start()
 try{[void]$window.ShowDialog()}finally{$mutex.ReleaseMutex();$mutex.Dispose()}

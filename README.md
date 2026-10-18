@@ -51,3 +51,11 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\widget.ps1 -Smoke
 ```
 
 关闭已运行的小组件后再进行窗口验证。SmokeTest 在额度查询成功后保存本地 `preview.png` 并退出；网络或登录失败时仍显示错误，可手动关闭。
+
+## 多 AI 接口扩展（v1.1）
+
+已预留 Claude、DeepSeek、Gemini、OpenAI API 的适配位置，默认关闭，尚未接通。详见 [适配器说明](PROVIDERS.md) 和 providers.example.json。当前真实可用的仍是 Codex。
+
+窗口支持滚动显示多个额度，也支持余额文本；服务商部分失败不会阻断其他服务商。配置文件 providers.local.json 不上传 Git，密钥只使用环境变量。
+
+运行 `node --test quota.test.cjs` 执行边界和异常测试。SmokeTest 使用独立窗口锁，并在 40 秒后结束等待。
