@@ -38,7 +38,7 @@ async function main(){
  let data;
  try{
   const configPath=path.join(__dirname,'providers.local.json');
-  const config=fs.existsSync(configPath)?JSON.parse(fs.readFileSync(configPath,'utf8').replace(/^\uFEFF/,'')):{providers:[{id:'codex',enabled:true}]};
+  const config=fs.existsSync(configPath)?JSON.parse(fs.readFileSync(configPath,'utf8').replace(/^\uFEFF/,'')):{providers:[{id:'codex',enabled:true},...(fs.existsSync(path.join(__dirname,'subscription.local.txt'))?[{id:'traffic',label:'V2free',enabled:true}]:[])]};
   data=await collect(config,{codex});
  }catch(e){data={ok:false,error:'配置或读取错误：'+e.message,checkedAt:new Date().toISOString()};}
  const json=JSON.stringify(data);

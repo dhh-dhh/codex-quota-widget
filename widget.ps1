@@ -2,6 +2,7 @@
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
 $base=$PSScriptRoot
+. "$base\widget-ui.ps1"
 $mutex=New-Object Threading.Mutex($false,('Local\CodexQuotaWidgetV1'+$(if($SmokeTest){'-test'})))
 try{if(-not $mutex.WaitOne(0)){exit}}catch [Threading.AbandonedMutexException]{}
 $node=$env:CODEX_WIDGET_NODE
@@ -12,25 +13,32 @@ if(-not $codex){$codex=(Get-Command codex.exe -ErrorAction SilentlyContinue).Sou
 if(-not $codex){$codex=(Get-ChildItem (Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin') -Filter codex.exe -Recurse -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName}
 if(-not $codex -or -not (Test-Path $codex)){[System.Windows.MessageBox]::Show('找不到 Codex，请安装并登录，或设置 CODEX_WIDGET_CODEX 为 codex.exe 路径。');exit}
 if(-not (Test-Path $node)){[System.Windows.MessageBox]::Show('找不到 Node.js，请安装 Node.js 22 或更新版本，或设置 CODEX_WIDGET_NODE。');exit}
+$script:darkMode=$false
+try{$appearance=Get-Content -LiteralPath "$base\appearance.json" -Raw -Encoding UTF8 | ConvertFrom-Json;if($appearance.darkMode -is [bool]){$script:darkMode=$appearance.darkMode}}catch{}
+$brushResources=($script:WidgetPalette.Keys | ForEach-Object {'<SolidColorBrush x:Key="Brush'+$_.Substring(1)+'" Color="'+(Get-WidgetColor $_)+'"/>'}) -join ''
 [xml]$xaml=@"
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Codex 剩余额度" Width="306" SizeToContent="Height" WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent" Topmost="True" ShowInTaskbar="True" FontFamily="Microsoft YaHei UI">
-<Border Background="#F51A1E26" BorderBrush="#414958" BorderThickness="1" CornerRadius="16" Padding="20,16">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="油量表" Width="300" SizeToContent="Height" WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent" Topmost="True" ShowInTaskbar="True" FontFamily="Segoe UI, Microsoft YaHei UI" UseLayoutRounding="True" SnapsToDevicePixels="True">
+<Window.Resources>
+$brushResources
+<Style TargetType="ProgressBar"><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ProgressBar"><Grid x:Name="PART_Track" ClipToBounds="True"><Border Background="{TemplateBinding Background}" CornerRadius="2"/><Border x:Name="PART_Indicator" Background="{TemplateBinding Foreground}" HorizontalAlignment="Left" CornerRadius="2"/></Grid></ControlTemplate></Setter.Value></Setter></Style>
+<Style TargetType="Button"><Setter Property="Foreground" Value="{DynamicResource Brush4D6485}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="ButtonSurface" Background="{TemplateBinding Background}" CornerRadius="8"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonSurface" Property="Background" Value="{DynamicResource BrushE7EDF8}"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
+<Style TargetType="CheckBox"><Setter Property="Foreground" Value="{DynamicResource Brush4D5F78}"/><Setter Property="FontSize" Value="12"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Cursor" Value="Hand"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox"><Grid Background="Transparent"><Grid.ColumnDefinitions><ColumnDefinition Width="14"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Border x:Name="CheckSurface" Height="14" Background="{DynamicResource BrushFFFFFF}" BorderBrush="{DynamicResource BrushA4B2C7}" BorderThickness="1" CornerRadius="3"/><Path x:Name="CheckMark" Data="M 3 7 L 6 10 L 11 4" Stroke="{DynamicResource BrushFEFEFE}" StrokeThickness="1.7" Visibility="Collapsed" VerticalAlignment="Center"/><ContentPresenter Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center"/></Grid><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="CheckSurface" Property="Background" Value="{DynamicResource Brush326BD5}"/><Setter TargetName="CheckSurface" Property="BorderBrush" Value="{DynamicResource Brush326BD5}"/><Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
+</Window.Resources>
+<Border Background="{DynamicResource BrushFBFCFF}" BorderBrush="{DynamicResource BrushD4DDEA}" BorderThickness="1" CornerRadius="20" Padding="18,8,18,8">
 <StackPanel>
-<Grid x:Name="DragArea" Background="Transparent" Cursor="SizeAll" Margin="0,0,0,16"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-<StackPanel><TextBlock Text="AI QUOTA" Foreground="#94E2BC" FontWeight="Bold" FontSize="13"/><TextBlock Text="账户剩余额度" Foreground="#E9EDF5" FontSize="17" Margin="0,5,0,0"/></StackPanel>
-<Button x:Name="CloseBtn" Grid.Column="1" Content="×" Width="26" Height="26" VerticalAlignment="Top" Background="Transparent" Foreground="#A6AFBF" BorderThickness="0" FontSize="20" ToolTip="关闭小组件"/>
+<Grid x:Name="DragArea" Background="Transparent" Cursor="SizeAll" Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+<StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Grid Width="22" Height="22" Margin="0,0,9,0"><Rectangle Width="4" Height="11" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush263C5B}" HorizontalAlignment="Left" VerticalAlignment="Bottom"/><Rectangle Width="4" Height="20" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush263C5B}" VerticalAlignment="Bottom"/><Rectangle Width="4" Height="15" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush263C5B}" HorizontalAlignment="Right" VerticalAlignment="Bottom"/></Grid><TextBlock Text="油量表" Foreground="{DynamicResource Brush263C5B}" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/></StackPanel>
+<Button x:Name="CloseBtn" Grid.Column="1" Content="×" Width="44" Height="44" Margin="0,0,-10,0" FontSize="22" ToolTip="关闭小组件"/>
 </Grid>
-<ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="Rows"><TextBlock Text="正在读取额度…" Foreground="White" FontSize="22" Margin="0,6,0,18"/></StackPanel></ScrollViewer>
-<Border BorderBrush="#414958" BorderThickness="0,1,0,0" Margin="0,16,0,0" Padding="0,10,0,0">
-<StackPanel><TextBlock Text="本机状态 · 每 2 秒更新" Foreground="#8E9AAA" FontSize="11"/>
-<StackPanel x:Name="HardwareRows"><TextBlock Text="正在读取硬件…" Foreground="#ADB7C6" FontSize="12" Margin="0,10,0,0"/></StackPanel>
-</StackPanel></Border>
-<TextBlock x:Name="Status" Foreground="#8E9AAA" Text="每 60 秒自动刷新" FontSize="11" TextWrapping="Wrap" Margin="0,12,0,12"/>
-<Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-<CheckBox x:Name="Pin" Content="置顶" IsChecked="True" Foreground="#ADB7C6" VerticalAlignment="Center" FontSize="11"/>
-<Button x:Name="Refresh" Content="刷新" Grid.Column="1" Padding="12,4" Background="#303A49" Foreground="#E7EEF9" BorderThickness="0"/>
-</Grid>
-<CheckBox x:Name="Auto" Content="开机自动显示" Foreground="#ADB7C6" FontSize="11" Margin="0,12,0,0"/>
+<ScrollViewer x:Name="QuotaScroll" MaxHeight="330" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="Rows"><TextBlock Text="正在读取额度…" Foreground="{DynamicResource Brush5E6C80}" FontSize="14" Margin="0,12,0,20"/></StackPanel></ScrollViewer>
+<StackPanel x:Name="HardwareRows"><TextBlock Text="正在读取硬件…" Foreground="{DynamicResource Brush5E6C80}" FontSize="12" Margin="0,10,0,0"/></StackPanel>
+<TextBlock x:Name="Status" Foreground="{DynamicResource Brush5E6C80}" Text="额度每分钟更新 · 硬件每 2 秒" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,6"/>
+<Border BorderBrush="{DynamicResource BrushDCE3EE}" BorderThickness="0,1,0,0"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="50"/><ColumnDefinition Width="84"/><ColumnDefinition Width="84"/><ColumnDefinition Width="44"/></Grid.ColumnDefinitions>
+<CheckBox x:Name="Pin" Content="置顶" IsChecked="True" Height="44"/>
+<CheckBox x:Name="Auto" Content="开机启动" Grid.Column="1" Height="44"/>
+<CheckBox x:Name="Dark" Content="深色模式" Grid.Column="2" Height="44"/>
+<Button x:Name="Refresh" Grid.Column="3" Width="44" Height="44" ToolTip="刷新额度和流量" AutomationProperties.Name="刷新"><Path Data="M 17 8 A 7 7 0 1 0 17 15 M 17 3 L 17 8 L 12 8" Stroke="{DynamicResource Brush4D6485}" StrokeThickness="1.6" Width="20" Height="20"/></Button>
+</Grid></Border>
 </StackPanel></Border></Window>
 "@
 $window=[Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $xaml))
@@ -40,17 +48,8 @@ $script:hardwareWorker=[powershell]::Create()
 [void]$script:hardwareWorker.AddScript({param($root) . (Join-Path $root 'hardware.ps1'); Get-HardwareSnapshot}).AddArgument($base)
 $script:hardwarePending=$null;$script:hardwareNext=[datetime]::MinValue;$script:hardwarePassed=$false
 function Render-Hardware($data) {
- $hardwareRows.Children.Clear()
- $items=@(foreach($gpu in $data.gpus){@{label='显卡占用';percent=$gpu.percent;detail=$gpu.name}})
- if($items.Count -eq 0){$items=@(@{label='显卡占用';percent=$null;detail='暂不可用（需要 NVIDIA 驱动）'})}
- $items+=@{label='内存占用';percent=$data.memoryPercent;detail=$(if($null -ne $data.memoryPercent){"$($data.usedGB) / $($data.totalGB) GB"}else{'暂不可用'})}
- foreach($item in $items){
-  $grid=New-Object Windows.Controls.Grid;$grid.Margin='0,10,0,0'
-  $text=New-Object Windows.Controls.TextBlock;$text.Text=$item.label;$text.Foreground='#AEBACA';$text.FontSize=12;[void]$grid.Children.Add($text)
-  $text=New-Object Windows.Controls.TextBlock;$text.Text=if($null -eq $item.percent){'暂无数据'}else{"$($item.percent)%"};$text.Foreground='#E9EDF5';$text.FontSize=14;$text.FontWeight='SemiBold';$text.HorizontalAlignment='Right';[void]$grid.Children.Add($text);[void]$hardwareRows.Children.Add($grid)
-  $bar=New-Object Windows.Controls.ProgressBar;$bar.Height=6;$bar.Maximum=100;$bar.Value=if($null -eq $item.percent){0}else{$item.percent};$bar.Background='#333D4B';$bar.Foreground=if($item.percent -ge 85){'#F5B775'}else{'#89DEB3'};$bar.BorderThickness=0;$bar.Margin='0,6,0,0';[void]$hardwareRows.Children.Add($bar)
-  $text=New-Object Windows.Controls.TextBlock;$text.Text=$item.detail;$text.Foreground='#93A0B3';$text.FontSize=11;$text.TextWrapping='Wrap';$text.Margin='0,5,0,0';[void]$hardwareRows.Children.Add($text)
- }
+ $script:lastHardwareData=$data
+ Set-HardwareRows $hardwareRows $data
 }
 $startup=Join-Path ([Environment]::GetFolderPath('Startup')) 'Codex额度小组件.lnk'
 $window.FindName('Auto').IsChecked=Test-Path $startup
@@ -67,7 +66,8 @@ $window.FindName('CloseBtn').Add_Click({$window.Close()})
 $window.FindName('DragArea').Add_MouseLeftButtonDown({if($_.OriginalSource -isnot [Windows.Controls.Button]){$window.DragMove()}})
 $screen=[Windows.SystemParameters]::WorkArea
 $window.Left=$screen.Right-330;$window.Top=$screen.Top+80
-try{$pos=Get-Content -Raw "$base\position.json" | ConvertFrom-Json;$window.Left=[Math]::Max($screen.Left,[Math]::Min($pos.left,$screen.Right-306));$window.Top=[Math]::Max($screen.Top,[Math]::Min($pos.top,$screen.Bottom-350))}catch{}
+try{$pos=Get-Content -Raw "$base\position.json" | ConvertFrom-Json;$window.Left=[Math]::Max($screen.Left,[Math]::Min($pos.left,$screen.Right-$window.Width));$window.Top=[Math]::Max($screen.Top,[Math]::Min($pos.top,$screen.Bottom-350))}catch{}
+$window.Add_ContentRendered({$window.UpdateLayout();$window.Top=[Math]::Max($screen.Top,[Math]::Min($window.Top,$screen.Bottom-$window.ActualHeight))})
 $script:worker=$null;$script:next=[datetime]::MinValue;$script:lastSuccess=$null;$script:passed=$false
 function Begin-Refresh {
  if($script:worker){return}
@@ -79,18 +79,34 @@ function Begin-Refresh {
  $script:next=[datetime]::Now.AddSeconds(60)
 }
 function Render-Quota($data){
- if(-not $data.ok){$status.Foreground='#FFBA80';$status.Text=$data.error + $(if($script:lastSuccess){'（显示上次成功数据）'});return}
+ if(-not $data.ok){$status.Foreground=Get-WidgetColor '#98541C';$status.Text=$data.error + $(if($script:lastSuccess){'（显示上次成功数据）'});return}
  $rows.Children.Clear()
+ $script:lastQuotaData=$data
  foreach($r in $data.rows){
-  $label=switch($r.minutes){10080{'每周额度'} 300{'5 小时额度'} 1440{'每日额度'} default{if($null -eq $r.minutes){'额度'}else{"$($r.minutes) 分钟额度"}}}
-  if($r.name -ne 'codex'){$label="$($r.name) · $label"}
-  $t=New-Object Windows.Controls.TextBlock;$t.Text=$label;$t.Foreground='#AEBACA';$t.FontSize=12;$t.Margin='0,8,0,0';[void]$rows.Children.Add($t)
-  $t=New-Object Windows.Controls.TextBlock;$t.Text=if($r.displayValue){$r.displayValue}elseif($null -eq $r.remaining){'暂无数据'}else{"$($r.remaining)%"};$t.Foreground='#F5F8FD';$t.FontSize=46;$t.FontWeight='SemiBold';[void]$rows.Children.Add($t)
-  $bar=New-Object Windows.Controls.ProgressBar;$bar.Height=6;$bar.Maximum=100;$bar.Value=if($null -eq $r.remaining){0}else{$r.remaining};$bar.Background='#333D4B';$bar.Foreground=if($r.remaining -lt 20){'#F5B775'}else{'#89DEB3'};$bar.BorderThickness=0;if($null -ne $r.remaining){[void]$rows.Children.Add($bar)}
-  $t=New-Object Windows.Controls.TextBlock;$t.Foreground='#93A0B3';$t.FontSize=11;$t.TextWrapping='Wrap';$t.Margin='0,10,0,4';$t.Text=if($r.detail){$r.detail}elseif($r.resetsAt){'重置于 '+[DateTimeOffset]::FromUnixTimeSeconds($r.resetsAt).ToLocalTime().ToString('MM月dd日 HH:mm')}else{'重置时间暂无数据'};[void]$rows.Children.Add($t)
+  [void]$rows.Children.Add((New-QuotaCard $r))
  }
- if(@($data.rows).Count -eq 0){$t=New-Object Windows.Controls.TextBlock;$t.Text='当前账号暂无额度数据';$t.Foreground='White';[void]$rows.Children.Add($t)}
- $script:lastSuccess=[datetime]::Now;$script:passed=$true;$status.Foreground='#8E9AAA';$status.Text='更新于 '+$script:lastSuccess.ToString('HH:mm:ss')+' · 每分钟刷新';if($data.errors.Count -gt 0){$status.Foreground='#FFBA80';$status.Text+=' · '+($data.errors -join '；')}
+ if(@($data.rows).Count -eq 0){[void](Add-WidgetText $rows '当前账号暂无额度数据' 14 '#5E6C80')}
+ $script:lastSuccess=[datetime]::Now;$script:passed=$true;$status.Foreground=Get-WidgetColor '#5E6C80';$status.Text='更新于 '+$script:lastSuccess.ToString('HH:mm')+' · 硬件每 2 秒';if($data.errors.Count -gt 0){$status.Foreground=Get-WidgetColor '#98541C';$status.Text+=' · '+($data.errors -join '；')}
+}
+function Set-WidgetTheme([bool]$Dark) {
+ $statusText=$status.Text;$lastSuccess=$script:lastSuccess
+ $wasError=$status.Foreground.ToString() -eq ([Windows.Media.BrushConverter]::new().ConvertFromString((Get-WidgetColor '#98541C'))).ToString()
+ $script:darkMode=$Dark
+ foreach($color in $script:WidgetPalette.Keys){$window.Resources['Brush'+$color.Substring(1)]=[Windows.Media.BrushConverter]::new().ConvertFromString((Get-WidgetColor $color))}
+ $window.FindName('Dark').IsChecked=$Dark
+ if($script:lastQuotaData){Render-Quota $script:lastQuotaData}
+ if($script:lastHardwareData){Render-Hardware $script:lastHardwareData}
+ $script:lastSuccess=$lastSuccess;$status.Text=$statusText
+ $status.Foreground=Get-WidgetColor $(if($wasError){'#98541C'}else{'#5E6C80'})
+}
+$window.FindName('Dark').IsChecked=$script:darkMode
+$window.FindName('Dark').Add_Click({
+ Set-WidgetTheme ([bool]$this.IsChecked)
+ try{@{darkMode=$script:darkMode}|ConvertTo-Json|Set-Content -LiteralPath "$base\appearance.json" -Encoding UTF8}catch{$status.Text='主题已切换，但无法保存偏好'}
+})
+function Save-WidgetPreview([string]$Name) {
+ $window.UpdateLayout();$bitmap=New-Object Windows.Media.Imaging.RenderTargetBitmap([int]$window.ActualWidth,[int]$window.ActualHeight,96,96,[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($window)
+ $encoder=New-Object Windows.Media.Imaging.PngBitmapEncoder;$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));$file=[IO.File]::Create((Join-Path $base $Name));try{$encoder.Save($file)}finally{$file.Close()}
 }
 $refresh.Add_Click({Begin-Refresh})
 $timer=New-Object Windows.Threading.DispatcherTimer;$timer.Interval=[TimeSpan]::FromMilliseconds(500)
@@ -103,15 +119,17 @@ $timer.Add_Tick({
  if(-not $script:hardwarePending -and [datetime]::Now -ge $script:hardwareNext){$script:hardwarePending=$script:hardwareWorker.BeginInvoke()}
  try{
   if($script:worker -and $script:worker.HasExited){
-   if($script:worker.ExitCode -eq 0){Render-Quota (Get-Content -Raw -Encoding UTF8 "$base\quota.json" | ConvertFrom-Json)}else{$status.Text='读取失败，将在一分钟内重试';$status.Foreground='#FFBA80'}
+   if($script:worker.ExitCode -eq 0){Render-Quota (Get-Content -Raw -Encoding UTF8 "$base\quota.json" | ConvertFrom-Json)}else{$status.Text='读取失败，将在一分钟内重试';$status.Foreground=Get-WidgetColor '#98541C'}
    $script:worker.Dispose();$script:worker=$null;$refresh.IsEnabled=$true
   }
   if(-not $script:worker -and [datetime]::Now -ge $script:next){Begin-Refresh}
   if($SmokeTest -and $script:passed -and $script:hardwarePassed){
-   $window.UpdateLayout();$bitmap=New-Object Windows.Media.Imaging.RenderTargetBitmap([int]$window.ActualWidth,[int]$window.ActualHeight,96,96,[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($window)
-   $encoder=New-Object Windows.Media.Imaging.PngBitmapEncoder;$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));$file=[IO.File]::Create("$base\preview.png");$encoder.Save($file);$file.Close();$window.Close()
+   Save-WidgetPreview 'preview.png'
+   Set-WidgetTheme $false;Save-WidgetPreview 'preview-light.png'
+   Set-WidgetTheme $true;Save-WidgetPreview 'preview-dark.png'
+   $window.Close()
   }
- }catch{$status.Text='刷新异常，将自动重试';$status.Foreground='#FFBA80';$refresh.IsEnabled=$true;if($script:worker){if(-not $script:worker.HasExited){& taskkill.exe /PID $script:worker.Id /T /F 2>$null | Out-Null};$script:worker.Dispose();$script:worker=$null};$script:next=[datetime]::Now.AddSeconds(60);$_ | Out-String | Set-Content "$base\widget-error.log"}
+ }catch{$status.Text='刷新异常，将自动重试';$status.Foreground=Get-WidgetColor '#98541C';$refresh.IsEnabled=$true;if($script:worker){if(-not $script:worker.HasExited){& taskkill.exe /PID $script:worker.Id /T /F 2>$null | Out-Null};$script:worker.Dispose();$script:worker=$null};$script:next=[datetime]::Now.AddSeconds(60);$_ | Out-String | Set-Content "$base\widget-error.log"}
 })
 $window.Add_Closed({$timer.Stop();if($script:worker -and -not $script:worker.HasExited){ & taskkill.exe /PID $script:worker.Id /T /F 2>$null | Out-Null };@{left=$window.Left;top=$window.Top}|ConvertTo-Json|Set-Content "$base\position.json"})
 $smokeDeadline=[datetime]::Now.AddSeconds(40)

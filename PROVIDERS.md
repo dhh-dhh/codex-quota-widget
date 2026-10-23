@@ -1,4 +1,18 @@
-# 添加 AI 服务商
+# 额度与流量适配器
+
+## V2free 流量
+
+支持读取 Clash 订阅响应的 `Subscription-Userinfo`，已通过本机真实订阅读取验证，显示剩余 GB、剩余比例及已用 / 总量。数据以订阅接口口径为准，可能与网页单独展示的主套餐统计不同；首次接入请核对。界面中的 GB 按 1024³ 字节换算。套餐到期时间不会作为流量重置时间。
+
+1. 将用户中心提供的 HTTPS Clash 订阅链接保存到项目根目录 `subscription.local.txt`（一行一个链接，仅填写一条）。无需提供网站密码或 Cookie。
+2. 没有 `providers.local.json` 时，存在该文本文件便自动启用流量显示；如已有配置，请加入 `{"id":"traffic","label":"V2free","enabled":true}`。
+3. 重启组件，或等待下一次分钟刷新。链接失效或响应不含有效统计时显示读取错误。
+
+`subscription.local.txt` 和 `providers.local.json` 均已加入 Git 忽略规则。订阅链接视同凭证，不要上传或截图公开。组件只向链接所指向的 HTTPS 服务请求，不跟随重定向、不保存节点配置正文、不在日志中输出链接。
+
+协议参考：[MetaCubeX 官方面板说明](https://github.com/MetaCubeX/metacubexd/blob/main/README.md)。订阅接口的过期时间不等于主套餐重置日期。
+
+## AI 服务商
 
 当前只有 Codex 已接通并进行真实账户验证。Claude、DeepSeek、Gemini、OpenAI API 是预留适配器，默认关闭；启用但未实现时会显示“接口尚未配置”。示例中的环境变量名称只是约定，不代表已经调用相应服务。
 
@@ -37,4 +51,4 @@ module.exports = {
 
 ## 检查
 
-运行 node --test quota.test.cjs，覆盖未知数据、0/100% 边界、多额度窗口、部分失败、禁用服务商及超时。
+运行 `node --test quota.test.cjs traffic.test.cjs`，覆盖未知数据、0/100% 边界、多额度窗口、部分失败、禁用服务商、超时、订阅流量解析及错误脱敏。

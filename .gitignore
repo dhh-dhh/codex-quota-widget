@@ -9,3 +9,11 @@ auth.json
 node_modules/
 
 providers.local.json
+subscription.local.txt
+appearance.json
+preview-light.png
+preview-dark.png
+
+# Local design exploration and implementation notes
+/design-demos/
+/docs/superpowers/

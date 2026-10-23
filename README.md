@@ -2,7 +2,11 @@
 
 一个轻量的 Windows 桌面额度小组件，显示当前 Codex 账户的剩余额度和重置时间。使用 PowerShell WPF + Node.js，无第三方 npm 依赖。
 
-最新版本 **v1.2**：新增显卡和内存占用监控。详见 [更新日志与升级说明](CHANGELOG.md)。
+最新版本 **v1.3**：新增流量显示、紧凑界面和黑色模式。详见 [更新日志与升级说明](CHANGELOG.md)。
+
+采用 300 宽的浅色紧凑界面，流量卡片以单行标题和数值减少高度。在底部“开机启动”右侧勾选“深色模式”即可切换为黑灰色调，重启后会恢复上次选择。此偏好保存在本机 `appearance.json`，不上传 Git。
+
+本机还可配置 V2free 流量显示，接入步骤及数据口径见 [流量配置说明](PROVIDERS.md)。
 
 ## 功能
 
@@ -29,7 +33,7 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\widget.ps1
 
 优先从 PATH 查找 Node.js 和 codex.exe，再尝试 Windows Codex 安装位置及其运行环境。若自动查找失败，可设置用户环境变量 `CODEX_WIDGET_NODE` 和 `CODEX_WIDGET_CODEX`，分别指定 node.exe、codex.exe 的完整路径。更新环境变量后重新启动小组件。
 
-勾选“开机自动显示”会在当前用户的启动文件夹创建快捷方式；取消勾选会移除该快捷方式。卸载前先取消勾选，再关闭窗口并删除项目文件夹。
+勾选“开机启动”会在当前用户的启动文件夹创建快捷方式；取消勾选会移除该快捷方式。卸载前先取消勾选，再关闭窗口并删除项目文件夹。
 
 ## 数据与隐私
 
@@ -45,17 +49,19 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\widget.ps1
 - `read-quota.cjs`：只读额度查询及超时处理
 - `启动额度小组件.vbs`：隐藏控制台启动窗口
 - `hardware.ps1`：本机内存与 NVIDIA 显卡占用采集
+- `widget-ui.ps1`：浅色 / 深色主题、额度圆环、流量卡片和硬件列表；更新时需与 `widget.ps1` 一并替换
 
 ## 验证
 
 ```powershell
 node --check .\read-quota.cjs
+node --test .\quota.test.cjs .\traffic.test.cjs
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\hardware.test.ps1
 node .\read-quota.cjs "C:\path\to\codex.exe"
 powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\widget.ps1 -SmokeTest
 ```
 
-关闭已运行的小组件后再进行窗口验证。SmokeTest 在额度查询成功后保存本地 `preview.png` 并退出；网络或登录失败时仍显示错误，可手动关闭。
+SmokeTest 使用独立窗口锁，额度和硬件读取成功后保存 `preview.png`、`preview-light.png`、`preview-dark.png` 并退出，分别核对当前、浅色和黑色主题。它不会改变保存的主题偏好；网络或登录失败时最多等待约 40 秒后退出。
 
 ## 多 AI 接口扩展（v1.1）
 
