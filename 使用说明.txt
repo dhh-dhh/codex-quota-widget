@@ -19,3 +19,7 @@ https://learn.chatgpt.com/docs/app-server
 已有 providers.local.json 时，需要加入 traffic 服务商；详细步骤见 PROVIDERS.md。
 订阅链接和 appearance.json 主题偏好仅保存在本机，不要公开上传。
 升级时请更新整个源码目录，尤其是 widget-ui.ps1 及 providers 文件夹，同时保留本机私有配置。
+
+v1.4 在流量卡片内合并了“系统代理”开关。Clash Verge 需保持运行，代理状态约每 2 秒同步。
+此开关修改 Windows 手动代理状态，不更改 Clash 应用内部偏好；Clash 重新应用配置时可能接管系统代理。
+其他代理、PAC 或代理守卫启用时不允许切换，并显示原因。升级请一并复制 proxy-control.ps1。

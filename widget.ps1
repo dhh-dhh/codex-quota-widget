@@ -3,6 +3,7 @@ $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
 $base=$PSScriptRoot
 . "$base\widget-ui.ps1"
+. "$base\proxy-control.ps1"
 $mutex=New-Object Threading.Mutex($false,('Local\CodexQuotaWidgetV1'+$(if($SmokeTest){'-test'})))
 try{if(-not $mutex.WaitOne(0)){exit}}catch [Threading.AbandonedMutexException]{}
 $node=$env:CODEX_WIDGET_NODE
@@ -31,6 +32,13 @@ $brushResources
 <Button x:Name="CloseBtn" Grid.Column="1" Content="×" Width="44" Height="44" Margin="0,0,-10,0" FontSize="22" ToolTip="关闭小组件"/>
 </Grid>
 <ScrollViewer x:Name="QuotaScroll" MaxHeight="330" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="Rows"><TextBlock Text="正在读取额度…" Foreground="{DynamicResource Brush5E6C80}" FontSize="14" Margin="0,12,0,20"/></StackPanel></ScrollViewer>
+<Border Background="{DynamicResource BrushEDF2FF}" BorderBrush="{DynamicResource BrushD7E3FC}" BorderThickness="1" CornerRadius="14" Padding="12,5" Margin="0,0,0,12"><StackPanel>
+<StackPanel x:Name="TrafficRows"><TextBlock Text="正在读取流量…" FontSize="14" Foreground="{DynamicResource Brush23334B}" Margin="0,4,0,4"/></StackPanel>
+<Border BorderBrush="{DynamicResource BrushDCE3EE}" BorderThickness="0,1,0,0" Margin="0,5,0,0" Padding="0,8,0,0"><Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="44"/></Grid.ColumnDefinitions>
+<StackPanel><TextBlock Text="系统代理" FontSize="14" Foreground="{DynamicResource Brush23334B}"/><TextBlock x:Name="ProxyStatus" Text="正在读取状态…" FontSize="12" Foreground="{DynamicResource Brush5E6C80}" TextWrapping="Wrap" Margin="0,2,4,0"/></StackPanel>
+<CheckBox x:Name="ProxySwitch" Grid.Column="1" Width="44" Height="36" VerticalAlignment="Center" IsEnabled="False" ToolTip="切换 Windows 系统代理；Clash Verge 需保持运行" AutomationProperties.Name="系统代理"><CheckBox.Template><ControlTemplate TargetType="CheckBox"><Grid Background="Transparent"><Border x:Name="Rail" Width="38" Height="20" CornerRadius="10" Background="{DynamicResource BrushE2E9F5}"/><Ellipse x:Name="Thumb" Width="14" Height="14" Fill="White" Margin="6,0,0,0" HorizontalAlignment="Left"/></Grid><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Rail" Property="Background" Value="{DynamicResource Brush326BD5}"/><Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/><Setter TargetName="Thumb" Property="Margin" Value="0,0,6,0"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger></ControlTemplate.Triggers></ControlTemplate></CheckBox.Template></CheckBox>
+</Grid></Border>
+</StackPanel></Border>
 <StackPanel x:Name="HardwareRows"><TextBlock Text="正在读取硬件…" Foreground="{DynamicResource Brush5E6C80}" FontSize="12" Margin="0,10,0,0"/></StackPanel>
 <TextBlock x:Name="Status" Foreground="{DynamicResource Brush5E6C80}" Text="额度每分钟更新 · 硬件每 2 秒" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,6"/>
 <Border BorderBrush="{DynamicResource BrushDCE3EE}" BorderThickness="0,1,0,0"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="50"/><ColumnDefinition Width="84"/><ColumnDefinition Width="84"/><ColumnDefinition Width="44"/></Grid.ColumnDefinitions>
@@ -44,6 +52,19 @@ $brushResources
 $window=[Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $xaml))
 $rows=$window.FindName('Rows');$status=$window.FindName('Status');$refresh=$window.FindName('Refresh')
 $hardwareRows=$window.FindName('HardwareRows')
+$trafficRows=$window.FindName('TrafficRows')
+$proxySwitch=$window.FindName('ProxySwitch');$proxyStatus=$window.FindName('ProxyStatus')
+$script:proxyWorker=[powershell]::Create();$script:proxyPending=$null;$script:proxyNext=[datetime]::MinValue
+function Render-ProxyState($State) {
+ $proxySwitch.IsChecked=[bool]$State.enabled;$proxySwitch.IsEnabled=[bool]$State.available
+ $proxyStatus.Text=$State.detail
+}
+$proxySwitch.Add_Click({
+ $desired=[bool]$this.IsChecked;$proxySwitch.IsEnabled=$false;$proxyStatus.Text='正在切换…'
+ [void]$script:proxyWorker.Commands.Clear()
+ [void]$script:proxyWorker.AddScript({param($root,$enabled) $ErrorActionPreference='Stop';. (Join-Path $root 'proxy-control.ps1');Set-SystemProxyEnabled $enabled}).AddArgument($base).AddArgument($desired)
+ $script:proxyPending=$script:proxyWorker.BeginInvoke()
+})
 $script:hardwareWorker=[powershell]::Create()
 [void]$script:hardwareWorker.AddScript({param($root) . (Join-Path $root 'hardware.ps1'); Get-HardwareSnapshot}).AddArgument($base)
 $script:hardwarePending=$null;$script:hardwareNext=[datetime]::MinValue;$script:hardwarePassed=$false
@@ -81,10 +102,14 @@ function Begin-Refresh {
 function Render-Quota($data){
  if(-not $data.ok){$status.Foreground=Get-WidgetColor '#98541C';$status.Text=$data.error + $(if($script:lastSuccess){'（显示上次成功数据）'});return}
  $rows.Children.Clear()
+ $trafficRows.Children.Clear();$trafficFound=$false
  $script:lastQuotaData=$data
  foreach($r in $data.rows){
-  [void]$rows.Children.Add((New-QuotaCard $r))
+  if($r.name -match '主套餐剩余流量$'){
+   [void]$trafficRows.Children.Add((New-QuotaCard $r -Embedded));$trafficFound=$true
+  }else{[void]$rows.Children.Add((New-QuotaCard $r))}
  }
+ if(-not $trafficFound){[void](Add-WidgetText $trafficRows '流量暂不可用' 14 '#5E6C80' 'Normal' '0,4,0,4')}
  if(@($data.rows).Count -eq 0){[void](Add-WidgetText $rows '当前账号暂无额度数据' 14 '#5E6C80')}
  $script:lastSuccess=[datetime]::Now;$script:passed=$true;$status.Foreground=Get-WidgetColor '#5E6C80';$status.Text='更新于 '+$script:lastSuccess.ToString('HH:mm')+' · 硬件每 2 秒';if($data.errors.Count -gt 0){$status.Foreground=Get-WidgetColor '#98541C';$status.Text+=' · '+($data.errors -join '；')}
 }
@@ -112,6 +137,12 @@ $refresh.Add_Click({Begin-Refresh})
 $timer=New-Object Windows.Threading.DispatcherTimer;$timer.Interval=[TimeSpan]::FromMilliseconds(500)
 $timer.Add_Tick({
  if($SmokeTest -and [datetime]::Now -gt $smokeDeadline){$window.Close();return}
+ if($script:proxyPending -and $script:proxyPending.IsCompleted){
+  try{$proxyResult=$script:proxyWorker.EndInvoke($script:proxyPending);if($proxyResult.Count -gt 0){Render-ProxyState $proxyResult[0]}}
+  catch{Render-ProxyState (Get-SystemProxyState);$proxyStatus.Text='切换失败，请检查 Clash 设置'}
+  $script:proxyPending=$null;$script:proxyNext=[datetime]::Now.AddSeconds(2)
+ }
+ if(-not $script:proxyPending -and [datetime]::Now -ge $script:proxyNext){Render-ProxyState (Get-SystemProxyState);$script:proxyNext=[datetime]::Now.AddSeconds(2)}
  if($script:hardwarePending -and $script:hardwarePending.IsCompleted){
   try{$samples=$script:hardwareWorker.EndInvoke($script:hardwarePending);if($samples.Count -gt 0){Render-Hardware $samples[0];$script:hardwarePassed=$true}}catch{}
   $script:hardwarePending=$null;$script:hardwareNext=[datetime]::Now.AddSeconds(2)
@@ -134,4 +165,4 @@ $timer.Add_Tick({
 $window.Add_Closed({$timer.Stop();if($script:worker -and -not $script:worker.HasExited){ & taskkill.exe /PID $script:worker.Id /T /F 2>$null | Out-Null };@{left=$window.Left;top=$window.Top}|ConvertTo-Json|Set-Content "$base\position.json"})
 $smokeDeadline=[datetime]::Now.AddSeconds(40)
 $timer.Start()
-try{[void]$window.ShowDialog()}finally{$script:hardwareWorker.Stop();$script:hardwareWorker.Dispose();$mutex.ReleaseMutex();$mutex.Dispose()}
+try{[void]$window.ShowDialog()}finally{$script:proxyWorker.Stop();$script:proxyWorker.Dispose();$script:hardwareWorker.Stop();$script:hardwareWorker.Dispose();$mutex.ReleaseMutex();$mutex.Dispose()}

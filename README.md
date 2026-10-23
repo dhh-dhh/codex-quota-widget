@@ -2,11 +2,13 @@
 
 一个轻量的 Windows 桌面额度小组件，显示当前 Codex 账户的剩余额度和重置时间。使用 PowerShell WPF + Node.js，无第三方 npm 依赖。
 
-最新版本 **v1.3**：新增流量显示、紧凑界面和黑色模式。详见 [更新日志与升级说明](CHANGELOG.md)。
+最新版本 **v1.4**：新增系统代理开关，并将它与流量统计合并到同一张卡片。详见 [更新日志与升级说明](CHANGELOG.md)。
 
 采用 300 宽的浅色紧凑界面，流量卡片以单行标题和数值减少高度。在底部“开机启动”右侧勾选“深色模式”即可切换为黑灰色调，重启后会恢复上次选择。此偏好保存在本机 `appearance.json`，不上传 Git。
 
 本机还可配置 V2free 流量显示，接入步骤及数据口径见 [流量配置说明](PROVIDERS.md)。
+
+流量卡片上方展示剩余 GB、进度及已用 / 总量，下方通过“系统代理”开关控制 Windows 当前使用的 Clash Verge 本地代理，每 2 秒核对系统实际状态。Clash Verge 需保持运行，且当前代理地址必须与其配置一致。它不修改 Clash 节点、规则、TUN 或应用内部偏好；Clash 再次应用自身设置或重启时可能重新接管系统代理。遇到其他代理、PAC 或代理守卫时开关会禁用并显示原因。
 
 ## 功能
 
@@ -50,6 +52,7 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\widget.ps1
 - `启动额度小组件.vbs`：隐藏控制台启动窗口
 - `hardware.ps1`：本机内存与 NVIDIA 显卡占用采集
 - `widget-ui.ps1`：浅色 / 深色主题、额度圆环、流量卡片和硬件列表；更新时需与 `widget.ps1` 一并替换
+- `proxy-control.ps1`：读取 Windows 系统代理状态，并在确认地址属于 Clash Verge 后通过 WinINet 切换手动代理
 
 ## 验证
 
@@ -57,6 +60,7 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\widget.ps1
 node --check .\read-quota.cjs
 node --test .\quota.test.cjs .\traffic.test.cjs
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\hardware.test.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\proxy.test.ps1
 node .\read-quota.cjs "C:\path\to\codex.exe"
 powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\widget.ps1 -SmokeTest
 ```

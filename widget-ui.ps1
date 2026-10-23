@@ -49,7 +49,8 @@ function New-QuotaRing($Value,[string]$Display) {
  return $grid
 }
 
-function New-QuotaCard($Row) {
+function New-QuotaCard {
+ param($Row,[switch]$Embedded)
  $detail=if($Row.detail){($Row.detail -replace '\s*·\s*每分钟刷新\s*$','') -replace '^已用\s*/\s*总量：','已用 '}
  elseif($Row.resetsAt){[DateTimeOffset]::FromUnixTimeSeconds($Row.resetsAt).ToLocalTime().ToString('MM 月 dd 日 HH:mm')+' 重置'}
  else{'重置时间暂无数据'}
@@ -70,6 +71,7 @@ function New-QuotaCard($Row) {
  $compact=$Row.name -match '主套餐剩余流量$'
  $card=New-Object Windows.Controls.Border;$card.Background=Get-WidgetColor '#EDF2FF';$card.BorderBrush=Get-WidgetColor '#D7E3FC'
  $card.BorderThickness=1;$card.CornerRadius=14;$card.Padding=if($compact){'12,5'}else{'12'};$card.Margin='0,0,0,12'
+ if($Embedded){$card.BorderThickness=0;$card.Background='Transparent';$card.Padding=0;$card.Margin=0}
  $stack=New-Object Windows.Controls.StackPanel;$card.Child=$stack
  $title=$Row.name;$provider=''
  if($title -match '^(.+?) · (.+)$'){$provider=$Matches[1];$title=$Matches[2]}
