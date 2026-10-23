@@ -8,15 +8,34 @@
 }
 
 $script:WidgetPalette=@{
- '#23334B'='#EEEEEE';'#E2E9F5'='#333333';'#326BD5'='#82B7FF';'#B26520'='#F0B775'
- '#5E6C80'='#AAAAAA';'#EDF2FF'='#1C1C1C';'#D7E3FC'='#383838';'#2858AD'='#A9CDFF'
- '#4D6485'='#C4C4C4';'#E7EDF8'='#2A2A2A';'#4D5F78'='#C4C4C4';'#FFFFFF'='#181818'
- '#A4B2C7'='#666666';'#FBFCFF'='#101010';'#D4DDEA'='#383838';'#263C5B'='#EEEEEE'
- '#DCE3EE'='#333333';'#98541C'='#F0B775';'#FEFEFE'='#101010'
+ '#23334B'='#F8FAFC';'#E2E9F5'='#3A3549';'#326BD5'='#A174FF';'#B26520'='#F0B775'
+ '#5E6C80'='#A6B0C4';'#EDF2FF'='#25242F';'#D7E3FC'='#4D3E66';'#2858AD'='#C4B5FD'
+ '#4D6485'='#C6C3D4';'#E7EDF8'='#3B3151';'#4D5F78'='#CCC7DC';'#FFFFFF'='#25242F'
+ '#A4B2C7'='#756687';'#FBFCFF'='#1E1E24';'#D4DDEA'='#4A405B';'#263C5B'='#F8FAFC'
+ '#DCE3EE'='#4A4258';'#98541C'='#F0B775';'#FEFEFE'='#1E1E24'
+}
+$script:WidgetLightPalette=@{
+ '#23334B'='#30343B';'#E2E9F5'='#CED1D5';'#326BD5'='#657B9A';'#B26520'='#986025'
+ '#5E6C80'='#626973';'#EDF2FF'='#DDDFE2';'#D7E3FC'='#C5C8CD';'#2858AD'='#465E7F'
+ '#4D6485'='#5B6675';'#E7EDF8'='#D1D5DA';'#4D5F78'='#505A68';'#FFFFFF'='#E6E8EB'
+ '#A4B2C7'='#9DA3AC';'#FBFCFF'='#E4E5E7';'#D4DDEA'='#BCC1C8';'#263C5B'='#343B46'
+ '#DCE3EE'='#C3C7CD';'#98541C'='#88581F';'#FEFEFE'='#F0F1F2'
 }
 function Get-WidgetColor([string]$Color) {
  if($script:darkMode -and $script:WidgetPalette.ContainsKey($Color)){return $script:WidgetPalette[$Color]}
+ if(-not $script:darkMode -and $script:WidgetLightPalette.ContainsKey($Color)){return $script:WidgetLightPalette[$Color]}
  return $Color
+}
+function New-TicketTexture {
+ $lines=New-Object Windows.Media.GeometryGroup
+ [void]$lines.Children.Add([Windows.Media.LineGeometry]::new([Windows.Point]::new(0,0),[Windows.Point]::new(20,0)))
+ [void]$lines.Children.Add([Windows.Media.LineGeometry]::new([Windows.Point]::new(0,0),[Windows.Point]::new(0,20)))
+ $gridColor=if($script:darkMode){[Windows.Media.Color]::FromArgb(22,124,58,237)}else{[Windows.Media.Color]::FromArgb(18,80,88,100)}
+ $pen=[Windows.Media.Pen]::new([Windows.Media.SolidColorBrush]::new($gridColor),0.7)
+ $drawing=[Windows.Media.GeometryDrawing]::new($null,$pen,$lines)
+ $brush=[Windows.Media.DrawingBrush]::new($drawing)
+ $brush.Viewport=[Windows.Rect]::new(0,0,20,20);$brush.ViewportUnits='Absolute';$brush.TileMode='Tile';$brush.Stretch='Fill'
+ $brush.Freeze();return $brush
 }
 function New-WidgetBar($Value) {
  $bar=New-Object Windows.Controls.ProgressBar

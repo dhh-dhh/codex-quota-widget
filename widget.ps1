@@ -25,7 +25,8 @@ $brushResources
 <Style TargetType="Button"><Setter Property="Foreground" Value="{DynamicResource Brush4D6485}"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="ButtonSurface" Background="{TemplateBinding Background}" CornerRadius="8"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonSurface" Property="Background" Value="{DynamicResource BrushE7EDF8}"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
 <Style TargetType="CheckBox"><Setter Property="Foreground" Value="{DynamicResource Brush4D5F78}"/><Setter Property="FontSize" Value="12"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Cursor" Value="Hand"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox"><Grid Background="Transparent"><Grid.ColumnDefinitions><ColumnDefinition Width="14"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Border x:Name="CheckSurface" Height="14" Background="{DynamicResource BrushFFFFFF}" BorderBrush="{DynamicResource BrushA4B2C7}" BorderThickness="1" CornerRadius="3"/><Path x:Name="CheckMark" Data="M 3 7 L 6 10 L 11 4" Stroke="{DynamicResource BrushFEFEFE}" StrokeThickness="1.7" Visibility="Collapsed" VerticalAlignment="Center"/><ContentPresenter Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center"/></Grid><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="CheckSurface" Property="Background" Value="{DynamicResource Brush326BD5}"/><Setter TargetName="CheckSurface" Property="BorderBrush" Value="{DynamicResource Brush326BD5}"/><Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
 </Window.Resources>
-<Border Background="{DynamicResource BrushFBFCFF}" BorderBrush="{DynamicResource BrushD4DDEA}" BorderThickness="1" CornerRadius="20" Padding="18,8,18,8">
+<Border x:Name="Shell" Background="{DynamicResource BrushFBFCFF}" BorderBrush="{DynamicResource BrushD4DDEA}" BorderThickness="1" CornerRadius="20" Padding="18,8,18,8">
+<Grid><Rectangle x:Name="TicketTexture" IsHitTestVisible="False"/>
 <StackPanel>
 <Grid x:Name="DragArea" Background="Transparent" Cursor="SizeAll" Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
 <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Grid Width="22" Height="22" Margin="0,0,9,0"><Rectangle Width="4" Height="11" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush263C5B}" HorizontalAlignment="Left" VerticalAlignment="Bottom"/><Rectangle Width="4" Height="20" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush263C5B}" VerticalAlignment="Bottom"/><Rectangle Width="4" Height="15" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush263C5B}" HorizontalAlignment="Right" VerticalAlignment="Bottom"/></Grid><TextBlock Text="油量表" Foreground="{DynamicResource Brush263C5B}" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/></StackPanel>
@@ -41,13 +42,15 @@ $brushResources
 </StackPanel></Border>
 <StackPanel x:Name="HardwareRows"><TextBlock Text="正在读取硬件…" Foreground="{DynamicResource Brush5E6C80}" FontSize="12" Margin="0,10,0,0"/></StackPanel>
 <TextBlock x:Name="Status" Foreground="{DynamicResource Brush5E6C80}" Text="额度每分钟更新 · 硬件每 2 秒" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,6"/>
-<Border BorderBrush="{DynamicResource BrushDCE3EE}" BorderThickness="0,1,0,0"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="50"/><ColumnDefinition Width="84"/><ColumnDefinition Width="84"/><ColumnDefinition Width="44"/></Grid.ColumnDefinitions>
+<Border x:Name="TicketStub" BorderBrush="{DynamicResource BrushDCE3EE}" BorderThickness="0,1,0,0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
+<Line x:Name="TicketSeam" X1="0" Y1="0.5" X2="262" Y2="0.5" Height="1" Stretch="Fill" Stroke="{DynamicResource BrushA4B2C7}" StrokeThickness="1" StrokeDashArray="3,3" Visibility="Collapsed" Margin="0,0,0,3"/>
+<Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="50"/><ColumnDefinition Width="84"/><ColumnDefinition Width="84"/><ColumnDefinition Width="44"/></Grid.ColumnDefinitions>
 <CheckBox x:Name="Pin" Content="置顶" IsChecked="True" Height="44"/>
 <CheckBox x:Name="Auto" Content="开机启动" Grid.Column="1" Height="44"/>
 <CheckBox x:Name="Dark" Content="深色模式" Grid.Column="2" Height="44"/>
 <Button x:Name="Refresh" Grid.Column="3" Width="44" Height="44" ToolTip="刷新额度和流量" AutomationProperties.Name="刷新"><Path Data="M 17 8 A 7 7 0 1 0 17 15 M 17 3 L 17 8 L 12 8" Stroke="{DynamicResource Brush4D6485}" StrokeThickness="1.6" Width="20" Height="20"/></Button>
-</Grid></Border>
-</StackPanel></Border></Window>
+</Grid></Grid></Border>
+</StackPanel></Grid></Border></Window>
 "@
 $window=[Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $xaml))
 $rows=$window.FindName('Rows');$status=$window.FindName('Status');$refresh=$window.FindName('Refresh')
@@ -88,7 +91,8 @@ $window.FindName('DragArea').Add_MouseLeftButtonDown({if($_.OriginalSource -isno
 $screen=[Windows.SystemParameters]::WorkArea
 $window.Left=$screen.Right-330;$window.Top=$screen.Top+80
 try{$pos=Get-Content -Raw "$base\position.json" | ConvertFrom-Json;$window.Left=[Math]::Max($screen.Left,[Math]::Min($pos.left,$screen.Right-$window.Width));$window.Top=[Math]::Max($screen.Top,[Math]::Min($pos.top,$screen.Bottom-350))}catch{}
-$window.Add_ContentRendered({$window.UpdateLayout();$window.Top=[Math]::Max($screen.Top,[Math]::Min($window.Top,$screen.Bottom-$window.ActualHeight))})
+$window.Add_ContentRendered({$window.UpdateLayout();Update-TicketClip;$window.Top=[Math]::Max($screen.Top,[Math]::Min($window.Top,$screen.Bottom-$window.ActualHeight))})
+$window.Add_SizeChanged({Update-TicketClip})
 $script:worker=$null;$script:next=[datetime]::MinValue;$script:lastSuccess=$null;$script:passed=$false
 function Begin-Refresh {
  if($script:worker){return}
@@ -113,6 +117,24 @@ function Render-Quota($data){
  if(@($data.rows).Count -eq 0){[void](Add-WidgetText $rows '当前账号暂无额度数据' 14 '#5E6C80')}
  $script:lastSuccess=[datetime]::Now;$script:passed=$true;$status.Foreground=Get-WidgetColor '#5E6C80';$status.Text='更新于 '+$script:lastSuccess.ToString('HH:mm')+' · 硬件每 2 秒';if($data.errors.Count -gt 0){$status.Foreground=Get-WidgetColor '#98541C';$status.Text+=' · '+($data.errors -join '；')}
 }
+function Update-TicketClip {
+ $shell=$window.FindName('Shell')
+ if($shell.ActualWidth -le 0 -or $shell.ActualHeight -le 0){return}
+ $seam=$window.FindName('TicketStub').TranslatePoint([Windows.Point]::new(0,0),$shell).Y+0.5
+ $outline=[Windows.Media.RectangleGeometry]::new([Windows.Rect]::new(0,0,$shell.ActualWidth,$shell.ActualHeight),12,12)
+ $notches=New-Object Windows.Media.GeometryGroup
+ [void]$notches.Children.Add([Windows.Media.EllipseGeometry]::new([Windows.Point]::new(0,$seam),7,7))
+ [void]$notches.Children.Add([Windows.Media.EllipseGeometry]::new([Windows.Point]::new($shell.ActualWidth,$seam),7,7))
+ $shell.Clip=[Windows.Media.CombinedGeometry]::new([Windows.Media.GeometryCombineMode]::Exclude,$outline,$notches)
+}
+function Set-TicketDecoration {
+ $window.FindName('TicketTexture').Fill=New-TicketTexture
+ $shell=$window.FindName('Shell');$stub=$window.FindName('TicketStub')
+ $shell.CornerRadius=12;$stub.Background=if($script:darkMode){'#2B2B36'}else{'#D6D9DE'}
+ $stub.Margin='-18,0,-18,-8';$stub.Padding='18,0,18,8';$stub.BorderThickness=0
+ $window.FindName('TicketSeam').Visibility='Visible'
+ $window.UpdateLayout();Update-TicketClip
+}
 function Set-WidgetTheme([bool]$Dark) {
  $statusText=$status.Text;$lastSuccess=$script:lastSuccess
  $wasError=$status.Foreground.ToString() -eq ([Windows.Media.BrushConverter]::new().ConvertFromString((Get-WidgetColor '#98541C'))).ToString()
@@ -123,14 +145,16 @@ function Set-WidgetTheme([bool]$Dark) {
  if($script:lastHardwareData){Render-Hardware $script:lastHardwareData}
  $script:lastSuccess=$lastSuccess;$status.Text=$statusText
  $status.Foreground=Get-WidgetColor $(if($wasError){'#98541C'}else{'#5E6C80'})
+ Set-TicketDecoration
 }
+Set-TicketDecoration
 $window.FindName('Dark').IsChecked=$script:darkMode
 $window.FindName('Dark').Add_Click({
  Set-WidgetTheme ([bool]$this.IsChecked)
  try{@{darkMode=$script:darkMode}|ConvertTo-Json|Set-Content -LiteralPath "$base\appearance.json" -Encoding UTF8}catch{$status.Text='主题已切换，但无法保存偏好'}
 })
 function Save-WidgetPreview([string]$Name) {
- $window.UpdateLayout();$bitmap=New-Object Windows.Media.Imaging.RenderTargetBitmap([int]$window.ActualWidth,[int]$window.ActualHeight,96,96,[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($window)
+ $window.UpdateLayout();Update-TicketClip;$bitmap=New-Object Windows.Media.Imaging.RenderTargetBitmap([int]$window.ActualWidth,[int]$window.ActualHeight,96,96,[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($window)
  $encoder=New-Object Windows.Media.Imaging.PngBitmapEncoder;$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));$file=[IO.File]::Create((Join-Path $base $Name));try{$encoder.Save($file)}finally{$file.Close()}
 }
 $refresh.Add_Click({Begin-Refresh})
