@@ -21,6 +21,10 @@ if(-not (Test-Path $node)){[System.Windows.MessageBox]::Show('找不到 Node.js�
 <Button x:Name="CloseBtn" Grid.Column="1" Content="×" Width="26" Height="26" VerticalAlignment="Top" Background="Transparent" Foreground="#A6AFBF" BorderThickness="0" FontSize="20" ToolTip="关闭小组件"/>
 </Grid>
 <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="Rows"><TextBlock Text="正在读取额度…" Foreground="White" FontSize="22" Margin="0,6,0,18"/></StackPanel></ScrollViewer>
+<Border BorderBrush="#414958" BorderThickness="0,1,0,0" Margin="0,16,0,0" Padding="0,10,0,0">
+<StackPanel><TextBlock Text="本机状态 · 每 2 秒更新" Foreground="#8E9AAA" FontSize="11"/>
+<StackPanel x:Name="HardwareRows"><TextBlock Text="正在读取硬件…" Foreground="#ADB7C6" FontSize="12" Margin="0,10,0,0"/></StackPanel>
+</StackPanel></Border>
 <TextBlock x:Name="Status" Foreground="#8E9AAA" Text="每 60 秒自动刷新" FontSize="11" TextWrapping="Wrap" Margin="0,12,0,12"/>
 <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
 <CheckBox x:Name="Pin" Content="置顶" IsChecked="True" Foreground="#ADB7C6" VerticalAlignment="Center" FontSize="11"/>
@@ -31,6 +35,23 @@ if(-not (Test-Path $node)){[System.Windows.MessageBox]::Show('找不到 Node.js�
 "@
 $window=[Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $xaml))
 $rows=$window.FindName('Rows');$status=$window.FindName('Status');$refresh=$window.FindName('Refresh')
+$hardwareRows=$window.FindName('HardwareRows')
+$script:hardwareWorker=[powershell]::Create()
+[void]$script:hardwareWorker.AddScript({param($root) . (Join-Path $root 'hardware.ps1'); Get-HardwareSnapshot}).AddArgument($base)
+$script:hardwarePending=$null;$script:hardwareNext=[datetime]::MinValue;$script:hardwarePassed=$false
+function Render-Hardware($data) {
+ $hardwareRows.Children.Clear()
+ $items=@(foreach($gpu in $data.gpus){@{label='显卡占用';percent=$gpu.percent;detail=$gpu.name}})
+ if($items.Count -eq 0){$items=@(@{label='显卡占用';percent=$null;detail='暂不可用（需要 NVIDIA 驱动）'})}
+ $items+=@{label='内存占用';percent=$data.memoryPercent;detail=$(if($null -ne $data.memoryPercent){"$($data.usedGB) / $($data.totalGB) GB"}else{'暂不可用'})}
+ foreach($item in $items){
+  $grid=New-Object Windows.Controls.Grid;$grid.Margin='0,10,0,0'
+  $text=New-Object Windows.Controls.TextBlock;$text.Text=$item.label;$text.Foreground='#AEBACA';$text.FontSize=12;[void]$grid.Children.Add($text)
+  $text=New-Object Windows.Controls.TextBlock;$text.Text=if($null -eq $item.percent){'暂无数据'}else{"$($item.percent)%"};$text.Foreground='#E9EDF5';$text.FontSize=14;$text.FontWeight='SemiBold';$text.HorizontalAlignment='Right';[void]$grid.Children.Add($text);[void]$hardwareRows.Children.Add($grid)
+  $bar=New-Object Windows.Controls.ProgressBar;$bar.Height=6;$bar.Maximum=100;$bar.Value=if($null -eq $item.percent){0}else{$item.percent};$bar.Background='#333D4B';$bar.Foreground=if($item.percent -ge 85){'#F5B775'}else{'#89DEB3'};$bar.BorderThickness=0;$bar.Margin='0,6,0,0';[void]$hardwareRows.Children.Add($bar)
+  $text=New-Object Windows.Controls.TextBlock;$text.Text=$item.detail;$text.Foreground='#93A0B3';$text.FontSize=11;$text.TextWrapping='Wrap';$text.Margin='0,5,0,0';[void]$hardwareRows.Children.Add($text)
+ }
+}
 $startup=Join-Path ([Environment]::GetFolderPath('Startup')) 'Codex额度小组件.lnk'
 $window.FindName('Auto').IsChecked=Test-Path $startup
 $window.FindName('Auto').Add_Click({
@@ -75,13 +96,18 @@ $refresh.Add_Click({Begin-Refresh})
 $timer=New-Object Windows.Threading.DispatcherTimer;$timer.Interval=[TimeSpan]::FromMilliseconds(500)
 $timer.Add_Tick({
  if($SmokeTest -and [datetime]::Now -gt $smokeDeadline){$window.Close();return}
+ if($script:hardwarePending -and $script:hardwarePending.IsCompleted){
+  try{$samples=$script:hardwareWorker.EndInvoke($script:hardwarePending);if($samples.Count -gt 0){Render-Hardware $samples[0];$script:hardwarePassed=$true}}catch{}
+  $script:hardwarePending=$null;$script:hardwareNext=[datetime]::Now.AddSeconds(2)
+ }
+ if(-not $script:hardwarePending -and [datetime]::Now -ge $script:hardwareNext){$script:hardwarePending=$script:hardwareWorker.BeginInvoke()}
  try{
   if($script:worker -and $script:worker.HasExited){
    if($script:worker.ExitCode -eq 0){Render-Quota (Get-Content -Raw -Encoding UTF8 "$base\quota.json" | ConvertFrom-Json)}else{$status.Text='读取失败，将在一分钟内重试';$status.Foreground='#FFBA80'}
    $script:worker.Dispose();$script:worker=$null;$refresh.IsEnabled=$true
   }
   if(-not $script:worker -and [datetime]::Now -ge $script:next){Begin-Refresh}
-  if($SmokeTest -and $script:passed){
+  if($SmokeTest -and $script:passed -and $script:hardwarePassed){
    $window.UpdateLayout();$bitmap=New-Object Windows.Media.Imaging.RenderTargetBitmap([int]$window.ActualWidth,[int]$window.ActualHeight,96,96,[Windows.Media.PixelFormats]::Pbgra32);$bitmap.Render($window)
    $encoder=New-Object Windows.Media.Imaging.PngBitmapEncoder;$encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap));$file=[IO.File]::Create("$base\preview.png");$encoder.Save($file);$file.Close();$window.Close()
   }
@@ -90,4 +116,4 @@ $timer.Add_Tick({
 $window.Add_Closed({$timer.Stop();if($script:worker -and -not $script:worker.HasExited){ & taskkill.exe /PID $script:worker.Id /T /F 2>$null | Out-Null };@{left=$window.Left;top=$window.Top}|ConvertTo-Json|Set-Content "$base\position.json"})
 $smokeDeadline=[datetime]::Now.AddSeconds(40)
 $timer.Start()
-try{[void]$window.ShowDialog()}finally{$mutex.ReleaseMutex();$mutex.Dispose()}
+try{[void]$window.ShowDialog()}finally{$script:hardwareWorker.Stop();$script:hardwareWorker.Dispose();$mutex.ReleaseMutex();$mutex.Dispose()}

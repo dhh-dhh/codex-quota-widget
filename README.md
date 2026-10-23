@@ -2,6 +2,8 @@
 
 一个轻量的 Windows 桌面额度小组件，显示当前 Codex 账户的剩余额度和重置时间。使用 PowerShell WPF + Node.js，无第三方 npm 依赖。
 
+最新版本 **v1.2**：新增显卡和内存占用监控。详见 [更新日志与升级说明](CHANGELOG.md)。
+
 ## 功能
 
 - 每 60 秒自动刷新，支持手动刷新
@@ -10,6 +12,7 @@
 - 可拖动、记忆位置、置顶、可选开机启动
 - 网络或登录异常时显示提示，不把失败当成零额度
 - 单实例运行
+- 同屏显示本机 NVIDIA 显卡占用率、物理内存占用率和已用/总容量，每 2 秒异步采样，不阻塞窗口；额度仍每 60 秒刷新。显卡通过驱动自带的 `nvidia-smi` 读取，多个显卡分别显示；驱动不可用时显示暂无数据。
 
 ## 运行
 
@@ -41,11 +44,13 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\widget.ps1
 - `widget.ps1`：窗口、刷新、开机启动管理
 - `read-quota.cjs`：只读额度查询及超时处理
 - `启动额度小组件.vbs`：隐藏控制台启动窗口
+- `hardware.ps1`：本机内存与 NVIDIA 显卡占用采集
 
 ## 验证
 
 ```powershell
 node --check .\read-quota.cjs
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\hardware.test.ps1
 node .\read-quota.cjs "C:\path\to\codex.exe"
 powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\widget.ps1 -SmokeTest
 ```
