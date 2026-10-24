@@ -10,6 +10,7 @@ node_modules/
 
 providers.local.json
 subscription.local.txt
+deepseek-key.local.txt
 appearance.json
 preview-light.png
 preview-dark.png

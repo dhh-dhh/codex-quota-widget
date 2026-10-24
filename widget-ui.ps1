@@ -114,6 +114,46 @@ function New-QuotaCard {
  return $card
 }
 
+function Set-AccountRows($Container,$AccountRows,$Errors) {
+ $group=New-Object Windows.Controls.Grid;$group.Margin='0,2,0,12'
+ [void]$group.ColumnDefinitions.Add((New-Object Windows.Controls.ColumnDefinition))
+ [void]$group.ColumnDefinitions.Add((New-Object Windows.Controls.ColumnDefinition))
+ foreach($provider in @('codex','deepseek')){
+  $panel=New-Object Windows.Controls.Border;$panel.Background=Get-WidgetColor '#EDF2FF';$panel.BorderBrush=Get-WidgetColor '#D7E3FC'
+  $panel.BorderThickness=1;$panel.CornerRadius=12;$panel.Padding=8
+  $panel.Margin=if($provider -eq 'codex'){'0,0,4,0'}else{'4,0,0,0'}
+  $stack=New-Object Windows.Controls.StackPanel;$panel.Child=$stack
+  $title=if($provider -eq 'codex'){'Codex'}else{'DeepSeek'}
+  [void](Add-WidgetText $stack $title 13 '#23334B' 'SemiBold' '0,0,0,5')
+  $items=@($AccountRows | Where-Object {$_.providerId -eq $provider -or ($provider -eq 'codex' -and $_.name -eq 'codex') -or ($provider -eq 'deepseek' -and $_.name -match '^DeepSeek · ')})
+  foreach($item in $items){
+   if($provider -eq 'codex'){
+    $display=if($null -eq $item.remaining){'--'}else{"$($item.remaining)%"}
+    $ring=New-QuotaRing $item.remaining $display
+    $view=New-Object Windows.Controls.Viewbox;$view.Width=54;$view.Height=54;$view.HorizontalAlignment='Left';$view.Child=$ring
+    [void]$stack.Children.Add($view)
+    $label=switch($item.minutes){10080{'每周剩余'} 300{'5 小时剩余'} 1440{'每日剩余'} default{'剩余额度'}}
+    [void](Add-WidgetText $stack $label 11 '#5E6C80' 'Normal' '0,4,0,0')
+    $reset=if($item.resetsAt){[DateTimeOffset]::FromUnixTimeSeconds($item.resetsAt).ToLocalTime().ToString('MM/dd HH:mm')+' 重置'}else{'重置时间未知'}
+    [void](Add-WidgetText $stack $reset 10 '#5E6C80' 'Normal' '0,2,0,0')
+   }else{
+    [void](Add-WidgetText $stack $item.displayValue 23 '#2858AD' 'SemiBold' '0,9,0,8')
+    [void](Add-WidgetText $stack 'API 账户余额' 11 '#5E6C80')
+    $panel.ToolTip=$item.detail
+   }
+  }
+  if($items.Count -eq 0){
+   [void](Add-WidgetText $stack '--' 25 '#2858AD' 'SemiBold' '0,9,0,8')
+   $missingKey=$provider -eq 'deepseek' -and ($Errors -join ' ') -match 'deepseek-key.local.txt'
+   [void](Add-WidgetText $stack $(if($missingKey){'待配置密钥'}else{'暂不可用'}) 11 '#5E6C80')
+   $panel.ToolTip=($Errors -join '；')
+  }
+  if($provider -eq 'deepseek'){[Windows.Controls.Grid]::SetColumn($panel,1)}
+  [void]$group.Children.Add($panel)
+ }
+ [void]$Container.Children.Add($group)
+}
+
 function Set-HardwareRows($Container,$Data) {
  $Container.Children.Clear()
  $items=@(foreach($gpu in $Data.gpus){@{label='显卡占用';percent=$gpu.percent;detail=$gpu.name;tooltip=$gpu.name}})

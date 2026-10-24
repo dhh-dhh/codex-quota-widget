@@ -2,11 +2,15 @@
 
 一个轻量的 Windows 桌面额度小组件，显示当前 Codex 账户的剩余额度和重置时间。使用 PowerShell WPF + Node.js，无第三方 npm 依赖。
 
-最新版本 **v1.5**：新增紫黑票券深色主题，并将浅色模式调整为柔和浅灰网格，两种主题统一票券布局。详见 [更新日志与升级说明](CHANGELOG.md)。
+最新版本 **v1.6**：DeepSeek API 余额与 Codex 额度并排显示，标题右侧新增每秒更新的上传 / 下载网速，适配浅灰和紫黑两种主题。详见 [更新日志与升级说明](CHANGELOG.md)。
 
 采用 300 宽的浅灰网格紧凑界面，搭配低饱和蓝灰读数，流量卡片以单行标题和数值减少高度。在底部“开机启动”右侧勾选“深色模式”即可切换为紫黑票券主题。两种主题均包含细网格、底部虚线和票券缺口，重启后会恢复上次选择。此偏好保存在本机 `appearance.json`，不上传 Git。票券主题参考 [zeeshan_2112 的 Uiverse 卡片](https://uiverse.io/zeeshan_2112/shy-rattlesnake-3)，授权说明见 [第三方声明](THIRD_PARTY_NOTICES.md)。
 
 本机还可配置 V2free 流量显示，接入步骤及数据口径见 [流量配置说明](PROVIDERS.md)。
+
+顶部可并排显示 Codex 额度与 DeepSeek API 账户余额。将 DeepSeek API Key 保存到本机 `deepseek-key.local.txt`，或设置 `DEEPSEEK_API_KEY`，即可每分钟读取官方余额；密钥文件不会上传 Git。详细配置见 [DeepSeek 接入说明](PROVIDERS.md#deepseek-api-余额)。
+
+标题右侧显示实时上传（↑）与下载（↓）速度，每秒采样本机运行中的物理网卡，汇总字节每秒并自动切换 KB/s、MB/s、GB/s。首次采样或暂无可用网卡时显示 `--`。升级时请同时更新新增的 `network.ps1`。
 
 流量卡片上方展示剩余 GB、进度及已用 / 总量，下方通过“系统代理”开关控制 Windows 当前使用的 Clash Verge 本地代理，每 2 秒核对系统实际状态。Clash Verge 需保持运行，且当前代理地址必须与其配置一致。它不修改 Clash 节点、规则、TUN 或应用内部偏好；Clash 再次应用自身设置或重启时可能重新接管系统代理。遇到其他代理、PAC 或代理守卫时开关会禁用并显示原因。
 

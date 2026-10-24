@@ -3,7 +3,7 @@
     {"id":"codex","label":"Codex","enabled":true},
     {"id":"traffic","label":"V2free","enabled":false},
     {"id":"claude","label":"Claude","enabled":false,"options":{"apiKeyEnv":"ANTHROPIC_API_KEY"}},
-    {"id":"deepseek","label":"DeepSeek","enabled":false,"options":{"apiKeyEnv":"DEEPSEEK_API_KEY"}},
+    {"id":"deepseek","label":"DeepSeek","enabled":true,"options":{"apiKeyEnv":"DEEPSEEK_API_KEY"}},
     {"id":"gemini","label":"Gemini","enabled":false,"options":{"apiKeyEnv":"GEMINI_API_KEY"}},
     {"id":"openai","label":"OpenAI API","enabled":false,"options":{"apiKeyEnv":"OPENAI_API_KEY"}}
   ]

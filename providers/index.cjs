@@ -5,7 +5,7 @@ module.exports={
  codex:require('./codex.cjs'),
  traffic:require('./traffic.cjs'),
  claude:pending('Claude'),
- deepseek:pending('DeepSeek'),
+ deepseek:require('./deepseek.cjs'),
  gemini:pending('Gemini'),
  openai:pending('OpenAI API'),
 };

@@ -28,9 +28,10 @@ $brushResources
 <Border x:Name="Shell" Background="{DynamicResource BrushFBFCFF}" BorderBrush="{DynamicResource BrushD4DDEA}" BorderThickness="1" CornerRadius="20" Padding="18,8,18,8">
 <Grid><Rectangle x:Name="TicketTexture" IsHitTestVisible="False"/>
 <StackPanel>
-<Grid x:Name="DragArea" Background="Transparent" Cursor="SizeAll" Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+<Grid x:Name="DragArea" Background="Transparent" Cursor="SizeAll" Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
 <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Grid Width="22" Height="22" Margin="0,0,9,0"><Rectangle Width="4" Height="11" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush263C5B}" HorizontalAlignment="Left" VerticalAlignment="Bottom"/><Rectangle Width="4" Height="20" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush263C5B}" VerticalAlignment="Bottom"/><Rectangle Width="4" Height="15" RadiusX="2" RadiusY="2" Fill="{DynamicResource Brush263C5B}" HorizontalAlignment="Right" VerticalAlignment="Bottom"/></Grid><TextBlock Text="油量表" Foreground="{DynamicResource Brush263C5B}" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center"/></StackPanel>
-<Button x:Name="CloseBtn" Grid.Column="1" Content="×" Width="44" Height="44" Margin="0,0,-10,0" FontSize="22" ToolTip="关闭小组件"/>
+<StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="5,0,3,0" ToolTip="本机物理网卡实时上传 / 下载速度，每秒采样；单位为字节每秒"><TextBlock x:Name="UploadSpeed" Text="↑ --" FontSize="10.5" Foreground="{DynamicResource Brush5E6C80}" TextAlignment="Right"/><TextBlock x:Name="DownloadSpeed" Text="↓ --" FontSize="10.5" Foreground="{DynamicResource Brush2858AD}" TextAlignment="Right" Margin="0,2,0,0"/></StackPanel>
+<Button x:Name="CloseBtn" Grid.Column="2" Content="×" Width="44" Height="44" Margin="0,0,-10,0" FontSize="22" ToolTip="关闭小组件"/>
 </Grid>
 <ScrollViewer x:Name="QuotaScroll" MaxHeight="330" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="Rows"><TextBlock Text="正在读取额度…" Foreground="{DynamicResource Brush5E6C80}" FontSize="14" Margin="0,12,0,20"/></StackPanel></ScrollViewer>
 <Border Background="{DynamicResource BrushEDF2FF}" BorderBrush="{DynamicResource BrushD7E3FC}" BorderThickness="1" CornerRadius="14" Padding="12,5" Margin="0,0,0,12"><StackPanel>
@@ -71,6 +72,9 @@ $proxySwitch.Add_Click({
 $script:hardwareWorker=[powershell]::Create()
 [void]$script:hardwareWorker.AddScript({param($root) . (Join-Path $root 'hardware.ps1'); Get-HardwareSnapshot}).AddArgument($base)
 $script:hardwarePending=$null;$script:hardwareNext=[datetime]::MinValue;$script:hardwarePassed=$false
+$script:networkWorker=[powershell]::Create()
+[void]$script:networkWorker.AddScript({param($root) . (Join-Path $root 'network.ps1'); Get-NetworkSpeed}).AddArgument($base)
+$script:networkPending=$null;$script:networkNext=[datetime]::MinValue;$script:networkPassed=$false
 function Render-Hardware($data) {
  $script:lastHardwareData=$data
  Set-HardwareRows $hardwareRows $data
@@ -104,18 +108,23 @@ function Begin-Refresh {
  $script:next=[datetime]::Now.AddSeconds(60)
 }
 function Render-Quota($data){
- if(-not $data.ok){$status.Foreground=Get-WidgetColor '#98541C';$status.Text=$data.error + $(if($script:lastSuccess){'（显示上次成功数据）'});return}
+ if(-not $data.ok){
+  if(-not $script:lastQuotaData){$rows.Children.Clear();Set-AccountRows $rows @() @($data.errors + $data.error)}
+  $status.Foreground=Get-WidgetColor '#98541C';$status.Text=$data.error + $(if($script:lastSuccess){'（显示上次成功数据）'});return
+ }
  $rows.Children.Clear()
  $trafficRows.Children.Clear();$trafficFound=$false
  $script:lastQuotaData=$data
+ Set-AccountRows $rows $data.rows $data.errors
  foreach($r in $data.rows){
   if($r.name -match '主套餐剩余流量$'){
    [void]$trafficRows.Children.Add((New-QuotaCard $r -Embedded));$trafficFound=$true
-  }else{[void]$rows.Children.Add((New-QuotaCard $r))}
+  }elseif($r.providerId -notin @('codex','deepseek') -and $r.name -ne 'codex' -and $r.name -notmatch '^DeepSeek · '){[void]$rows.Children.Add((New-QuotaCard $r))}
  }
  if(-not $trafficFound){[void](Add-WidgetText $trafficRows '流量暂不可用' 14 '#5E6C80' 'Normal' '0,4,0,4')}
  if(@($data.rows).Count -eq 0){[void](Add-WidgetText $rows '当前账号暂无额度数据' 14 '#5E6C80')}
- $script:lastSuccess=[datetime]::Now;$script:passed=$true;$status.Foreground=Get-WidgetColor '#5E6C80';$status.Text='更新于 '+$script:lastSuccess.ToString('HH:mm')+' · 硬件每 2 秒';if($data.errors.Count -gt 0){$status.Foreground=Get-WidgetColor '#98541C';$status.Text+=' · '+($data.errors -join '；')}
+ $visibleErrors=@($data.errors | Where-Object {$_ -notmatch '^DeepSeek:'})
+ $script:lastSuccess=[datetime]::Now;$script:passed=$true;$status.Foreground=Get-WidgetColor '#5E6C80';$status.Text='更新于 '+$script:lastSuccess.ToString('HH:mm')+' · 硬件每 2 秒';if($visibleErrors.Count -gt 0){$status.Foreground=Get-WidgetColor '#98541C';$status.Text+=' · '+($visibleErrors -join '；')}
 }
 function Update-TicketClip {
  $shell=$window.FindName('Shell')
@@ -161,6 +170,19 @@ $refresh.Add_Click({Begin-Refresh})
 $timer=New-Object Windows.Threading.DispatcherTimer;$timer.Interval=[TimeSpan]::FromMilliseconds(500)
 $timer.Add_Tick({
  if($SmokeTest -and [datetime]::Now -gt $smokeDeadline){$window.Close();return}
+ if($script:networkPending -and $script:networkPending.IsCompleted){
+  try{
+   $networkSamples=$script:networkWorker.EndInvoke($script:networkPending)
+   if($networkSamples.Count -gt 0){
+    $networkSample=$networkSamples[0]
+    $window.FindName('UploadSpeed').Text='↑ '+$networkSample.uploadText
+    $window.FindName('DownloadSpeed').Text='↓ '+$networkSample.downloadText
+    $script:networkPassed=($null -ne $networkSample.upload)
+   }
+  }catch{$window.FindName('UploadSpeed').Text='↑ --';$window.FindName('DownloadSpeed').Text='↓ --'}
+  $script:networkPending=$null;$script:networkNext=[datetime]::Now.AddMilliseconds(500)
+ }
+ if(-not $script:networkPending -and [datetime]::Now -ge $script:networkNext){$script:networkPending=$script:networkWorker.BeginInvoke()}
  if($script:proxyPending -and $script:proxyPending.IsCompleted){
   try{$proxyResult=$script:proxyWorker.EndInvoke($script:proxyPending);if($proxyResult.Count -gt 0){Render-ProxyState $proxyResult[0]}}
   catch{Render-ProxyState (Get-SystemProxyState);$proxyStatus.Text='切换失败，请检查 Clash 设置'}
@@ -178,7 +200,7 @@ $timer.Add_Tick({
    $script:worker.Dispose();$script:worker=$null;$refresh.IsEnabled=$true
   }
   if(-not $script:worker -and [datetime]::Now -ge $script:next){Begin-Refresh}
-  if($SmokeTest -and $script:passed -and $script:hardwarePassed){
+  if($SmokeTest -and $script:passed -and $script:hardwarePassed -and $script:networkPassed){
    Save-WidgetPreview 'preview.png'
    Set-WidgetTheme $false;Save-WidgetPreview 'preview-light.png'
    Set-WidgetTheme $true;Save-WidgetPreview 'preview-dark.png'
@@ -189,4 +211,4 @@ $timer.Add_Tick({
 $window.Add_Closed({$timer.Stop();if($script:worker -and -not $script:worker.HasExited){ & taskkill.exe /PID $script:worker.Id /T /F 2>$null | Out-Null };@{left=$window.Left;top=$window.Top}|ConvertTo-Json|Set-Content "$base\position.json"})
 $smokeDeadline=[datetime]::Now.AddSeconds(40)
 $timer.Start()
-try{[void]$window.ShowDialog()}finally{$script:proxyWorker.Stop();$script:proxyWorker.Dispose();$script:hardwareWorker.Stop();$script:hardwareWorker.Dispose();$mutex.ReleaseMutex();$mutex.Dispose()}
+try{[void]$window.ShowDialog()}finally{$script:networkWorker.Stop();$script:networkWorker.Dispose();$script:proxyWorker.Stop();$script:proxyWorker.Dispose();$script:hardwareWorker.Stop();$script:hardwareWorker.Dispose();$mutex.ReleaseMutex();$mutex.Dispose()}

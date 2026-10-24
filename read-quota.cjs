@@ -27,7 +27,7 @@ async function collect(config,context,adapters=registry){
     ]);
    } finally {clearTimeout(timer)}
    const rows=validateRows(raw);
-   return {id:p.id,ok:true,rows:rows.map(r=>({...r,name:p.id==='codex'?r.name:(p.label||p.id)+' · '+r.name}))};
+   return {id:p.id,ok:true,rows:rows.map(r=>({...r,providerId:p.id,name:p.id==='codex'?r.name:(p.label||p.id)+' · '+r.name}))};
   }catch(e){return {id:p.id,ok:false,error:(p.label||p.id)+': '+e.message,rows:[]}}
  }));
  const errors=results.filter(r=>!r.ok).map(r=>r.error);
@@ -38,7 +38,7 @@ async function main(){
  let data;
  try{
   const configPath=path.join(__dirname,'providers.local.json');
-  const config=fs.existsSync(configPath)?JSON.parse(fs.readFileSync(configPath,'utf8').replace(/^\uFEFF/,'')):{providers:[{id:'codex',enabled:true},...(fs.existsSync(path.join(__dirname,'subscription.local.txt'))?[{id:'traffic',label:'V2free',enabled:true}]:[])]};
+  const config=fs.existsSync(configPath)?JSON.parse(fs.readFileSync(configPath,'utf8').replace(/^\uFEFF/,'')):{providers:[{id:'codex',enabled:true},{id:'deepseek',label:'DeepSeek',enabled:true},...(fs.existsSync(path.join(__dirname,'subscription.local.txt'))?[{id:'traffic',label:'V2free',enabled:true}]:[])]};
   data=await collect(config,{codex});
  }catch(e){data={ok:false,error:'配置或读取错误：'+e.message,checkedAt:new Date().toISOString()};}
  const json=JSON.stringify(data);
